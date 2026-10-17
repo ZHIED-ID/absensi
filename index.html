@@ -1,0 +1,146 @@
+<!DOCTYPE html><html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Absensi</title><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0f766e">
+<link rel="icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1a1d21;--mu:#6b7280;--ac:#0f766e;--bd:#e3e6ea;--dg:#b91c1c;--bt:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1b2026;--tx:#eceff2;--mu:#98a2ae;--ac:#2dd4bf;--bd:#2c343d;--dg:#f87171;--bt:#06201d}}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:560px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:8px 0 2px}h2{font-size:16px;margin:0 0 8px}p.s{color:var(--mu);margin:0 0 14px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:14px}
+label{display:block;font-size:13px;color:var(--mu);margin:10px 0 4px}
+input,select{width:100%;padding:11px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{width:100%;padding:13px;border:0;border-radius:10px;background:var(--ac);color:var(--bt);font:600 15px inherit;font-family:inherit;margin-top:12px;cursor:pointer}
+button.o{background:transparent;color:var(--tx);border:1px solid var(--bd)}
+.r{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--bd);font-size:14px}
+.r small{color:var(--mu);display:block}.r a{color:var(--dg);font-size:13px;cursor:pointer;display:block;padding:4px 0}
+.th{display:flex;gap:6px;margin-left:auto}.t{width:46px;height:58px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)}
+#m{font-size:13px;margin-top:10px;min-height:18px;color:var(--ac)}
+</style></head><body><main>
+<h1>Absensi Karyawan</h1><p class="s">Bagikan foto absen dari galeri. Tanggal dan urutan masuk/pulang diatur otomatis.</p>
+
+<div class="c"><div class="g"><div><label>Nama</label><input id="n" placeholder="Nama lengkap"></div><div><label>Cabang</label><input id="b" placeholder="Nama cabang"></div></div>
+<label>Tambah foto absen (bisa banyak sekaligus)</label><input id="f" type="file" accept="image/*" multiple><div id="m"></div></div>
+
+<div class="c" id="nd" hidden><h2>Foto belum ada tanggal</h2><p class="s">Pilih tanggal foto ini agar masuk ke rekap.</p><div id="nl"></div></div>
+
+<div class="c"><h2>Tandai libur / sakit / izin</h2>
+<div class="g"><div><label>Dari tanggal</label><input id="da" type="date"></div><div><label>Sampai (opsional)</label><input id="db" type="date"></div></div>
+<label>Jenis</label><select id="jn"><option value="libur">Libur</option><option value="sakit">Sakit</option><option value="izin">Izin</option></select>
+<div id="ws" hidden><label>Foto surat dokter (wajib)</label><input id="dk" type="file" accept="image/*"></div>
+<div id="wi" hidden><label>Keterangan izin (wajib)</label><input id="kt" placeholder="Alasan izin"></div>
+<button id="tv">Simpan tanda</button></div>
+
+<div class="c"><label style="margin-top:0">Bulan</label><input id="mo" type="month"><div id="ls" style="margin-top:8px"></div>
+<button id="pdf">Unduh PDF bulan ini</button>
+<div class="g"><button class="o" id="ex">Simpan data</button><button class="o" id="im">Muat data</button></div><input id="fi" type="file" accept=".json" hidden></div>
+</main>
+<script>
+const $=id=>document.getElementById(id),HR=['Min','Sen','Sel','Rab','Kam','Jum','Sab'],LB={hadir:'Hadir',libur:'Libur',sakit:'Sakit',izin:'Izin'};
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const msg=t=>$('m').textContent=t;
+let DB,ph=[],dy=[];
+const S=(st,m,f)=>new Promise((ok,no)=>{const t=DB.transaction(st,m),r=f(t.objectStore(st));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>no(t.error)});
+async function load(){ph=await S('p','readonly',s=>s.getAll());dy=await S('d','readonly',s=>s.getAll());draw()}
+$('mo').value=iso(new Date()).slice(0,7);
+try{$('n').value=localStorage.getItem('an')||'';$('b').value=localStorage.getItem('ab')||''}catch(e){}
+$('n').onchange=$('b').onchange=()=>{try{localStorage.setItem('an',$('n').value);localStorage.setItem('ab',$('b').value)}catch(e){}};
+
+function exif(buf){const v=new DataView(buf);if(v.getUint16(0)!==0xFFD8)return null;let o=2;
+ while(o<v.byteLength-4){const m=v.getUint16(o),l=v.getUint16(o+2);
+  if(m===0xFFE1&&v.getUint32(o+4)===0x45786966){const t=o+10,le=v.getUint16(t)===0x4949,g=(p,s)=>s===2?v.getUint16(p,le):v.getUint32(p,le);
+   const f=(p,tag)=>{const n=g(p,2);for(let i=0;i<n;i++){const e=p+2+i*12;if(g(e,2)===tag)return g(e+8,4)}};
+   const ex=f(t+g(t+4,4),0x8769);if(ex==null)return null;const dt=f(t+ex,0x9003);if(dt==null)return null;
+   let s='';for(let i=0;i<19;i++)s+=String.fromCharCode(v.getUint8(t+dt+i));
+   const a=s.match(/(\d+):(\d+):(\d+) (\d+):(\d+):(\d+)/);return a?new Date(+a[1],a[2]-1,+a[3],+a[4],+a[5],+a[6]).getTime():null}
+  o+=2+l}return null}
+function shrink(f){return new Promise((ok,no)=>{const u=URL.createObjectURL(f),i=new Image();i.onload=()=>{const k=Math.min(1,700/Math.max(i.width,i.height)),w=Math.round(i.width*k),h=Math.round(i.height*k),c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(i,0,0,w,h);URL.revokeObjectURL(u);ok({d:c.toDataURL('image/jpeg',.65),w,h})};i.onerror=no;i.src=u})}
+
+async function add(fs,sh){let n=0;
+ for(const f of fs){try{let t=null;try{t=exif(await f.slice(0,131072).arrayBuffer())}catch(e){}
+  if(!t&&!sh&&f.lastModified)t=f.lastModified;
+  const s=await shrink(f);
+  await S('p','readwrite',o=>o.put({id:Date.now()+'_'+Math.random().toString(36).slice(2,7),t,date:t?iso(new Date(t)):'',d:s.d,w:s.w,h:s.h}));n++}catch(e){}}
+ msg(n+' foto ditambahkan.');await load()}
+$('f').onchange=async e=>{await add([...e.target.files],false);e.target.value=''};
+async function got(){if(!/shared=1/.test(location.search)||!window.caches)return;
+ const c=await caches.open('share'),ks=await c.keys(),fs=[];
+ for(const k of ks){const r=await c.match(k);fs.push(new File([await r.blob()],decodeURIComponent(r.headers.get('x-name')||'foto.jpg'),{type:'image/jpeg'}));await c.delete(k)}
+ history.replaceState(null,'','./');if(fs.length)await add(fs,true)}
+
+function info(ds){const rec=dy.find(x=>x.date===ds),p=ph.filter(x=>x.date===ds).sort((a,b)=>a.t-b.t);
+ if(rec&&rec.swap)p.reverse();
+ return{rec,k:rec&&rec.st?rec.st:(p.length?'hadir':'libur'),in:p[0],out:p.length>1?p[p.length-1]:null,ex:p.length-2,note:rec&&rec.note}}
+
+function draw(){
+ const nd=ph.filter(x=>!x.date);$('nd').hidden=!nd.length;
+ $('nl').innerHTML=nd.map(x=>'<div class="r"><img class="t" src="'+x.d+'"><input type="date" data-i="'+x.id+'"><a data-x="'+x.id+'">Hapus</a></div>').join('');
+ const mo=$('mo').value;if(!mo)return;const [Y,M]=mo.split('-').map(Number),N=new Date(Y,M,0).getDate();let h='';
+ for(let d=1;d<=N;d++){const ds=mo+'-'+String(d).padStart(2,'0'),i=info(ds);
+  h+='<div class="r"><div><b>'+d+'</b> '+HR[new Date(Y,M-1,d).getDay()]+' · '+LB[i.k]+(i.ex>0?'<small>'+i.ex+' foto lain tidak dipakai</small>':'')+(i.note?'<small>'+esc(i.note)+'</small>':'')+'</div><div class="th">'
+   +(i.in?'<img class="t" data-p="'+i.in.id+'" src="'+i.in.d+'">':'')+(i.out?'<img class="t" data-p="'+i.out.id+'" src="'+i.out.d+'">':'')+'</div><div>'
+   +(i.out?'<a data-w="'+ds+'">Tukar</a>':'')+(i.rec&&i.rec.st?'<a data-s="'+ds+'">Reset</a>':'')+'</div></div>'}
+ $('ls').innerHTML=h}
+$('mo').onchange=draw;
+
+document.addEventListener('click',async e=>{const a=e.target.dataset;
+ if(a.p){const p=ph.find(x=>x.id===a.p),v=prompt('Tanggal foto (TTTT-BB-HH). Kosongkan lalu OK untuk menghapus foto.',p.date);if(v===null)return;
+  if(!v.trim())await S('p','readwrite',o=>o.delete(p.id));
+  else if(/^\d{4}-\d\d-\d\d$/.test(v.trim())){p.date=v.trim();if(!p.t)p.t=new Date(p.date+'T12:00').getTime();await S('p','readwrite',o=>o.put(p))}
+  else return msg('Format tanggal salah.');await load()}
+ if(a.x){await S('p','readwrite',o=>o.delete(a.x));await load()}
+ if(a.w){const r=dy.find(x=>x.date===a.w)||{date:a.w};r.swap=!r.swap;await S('d','readwrite',o=>o.put(r));await load()}
+ if(a.s){const r=dy.find(x=>x.date===a.s);if(r.swap){delete r.st;delete r.note;delete r.doc;await S('d','readwrite',o=>o.put(r))}else await S('d','readwrite',o=>o.delete(a.s));await load()}});
+document.addEventListener('change',async e=>{const i=e.target.dataset.i;if(!i||!e.target.value)return;
+ const p=ph.find(x=>x.id===i);p.date=e.target.value;if(!p.t)p.t=new Date(p.date+'T12:00').getTime();await S('p','readwrite',o=>o.put(p));await load()});
+
+$('jn').onchange=()=>{$('ws').hidden=$('jn').value!=='sakit';$('wi').hidden=$('jn').value!=='izin'};
+$('tv').onclick=async()=>{const a=$('da').value,b=$('db').value||a,j=$('jn').value,kt=$('kt').value.trim();
+ if(!a||b<a)return msg('Isi tanggal dengan benar.');
+ if(j==='izin'&&!kt)return msg('Keterangan izin wajib diisi.');
+ let doc=null;if(j==='sakit'){const f=$('dk').files[0];if(!f)return msg('Foto surat dokter wajib untuk sakit.');try{doc=await shrink(f)}catch(e){return msg('Foto surat gagal dibaca.')}}
+ let n=0;for(const t=new Date(a+'T12:00');iso(t)<=b&&n<31;t.setDate(t.getDate()+1),n++){const ds=iso(t),old=dy.find(x=>x.date===ds)||{};
+  await S('d','readwrite',o=>o.put({date:ds,swap:old.swap,st:j,note:j==='izin'?kt:'',doc:doc&&doc.d,dw:doc&&doc.w,dh:doc&&doc.h}))}
+ msg(n+' hari ditandai '+LB[j]+'.');await load()};
+
+function dl(b,fn){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=fn;a.click()}
+$('pdf').onclick=()=>{
+ const mo=$('mo').value,[Y,M]=mo.split('-').map(Number),N=new Date(Y,M,0).getDate(),nm=$('n').value.trim(),br=$('b').value.trim();
+ if(!nm)return msg('Isi nama dulu.');
+ const {jsPDF}=window.jspdf,doc=new jsPDF('p','mm','a4'),X=[10,34,92,146],W=[24,58,54,54];
+ const bln=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][M-1];
+ const days=[],cnt={hadir:0,libur:0,sakit:0,izin:0};
+ for(let d=1;d<=N;d++){const ds=mo+'-'+String(d).padStart(2,'0'),i=info(ds);cnt[i.k]++;days.push({d,i,w:HR[new Date(Y,M-1,d).getDay()]})}
+ const pg=[];let k=0;for(let p=0;p<9&&k<N;p++){pg.push(days.slice(k,k+3));k+=3}if(k<N)pg.push(days.slice(k));
+ pg.forEach((rows,pi)=>{if(pi)doc.addPage();let y=12;
+  if(!pi){doc.setFontSize(16);doc.setFont(undefined,'bold');doc.text('LAPORAN ABSENSI',10,16);doc.setFontSize(10);doc.setFont(undefined,'normal');
+   doc.text('Nama    : '+nm,10,24);doc.text('Cabang  : '+br,10,29);doc.text('Periode : '+bln+' '+Y,10,34);
+   doc.text('Hadir '+cnt.hadir+' · Libur '+cnt.libur+' · Sakit '+cnt.sakit+' · Izin '+cnt.izin,10,39);y=44}
+  doc.setFillColor(15,118,110);doc.rect(10,y,190,8,'F');doc.setTextColor(255);doc.setFontSize(10);doc.setFont(undefined,'bold');
+  ['Tgl','Keterangan','Absen Masuk','Absen Pulang'].forEach((t,c)=>doc.text(t,X[c]+2,y+5.5));y+=8;
+  const rh=(284-y)/rows.length;
+  rows.forEach(({d,i,w})=>{doc.setDrawColor(200);doc.setTextColor(0);doc.rect(10,y,190,rh);X.slice(1).forEach(x=>doc.line(x,y,x,y+rh));
+   doc.setFontSize(12);doc.setFont(undefined,'bold');doc.text(d+' '+w,X[0]+2,y+8);doc.setFont(undefined,'normal');doc.setFontSize(10);
+   const L={hadir:['Hadir'],libur:['Absen Libur','Shift: Day Off','Terima kasih'],sakit:['Sakit'],izin:['Izin'].concat(doc.splitTextToSize(i.note||'',W[1]-4))}[i.k];
+   L.forEach((t,j)=>doc.text(t,X[1]+2,y+8+j*5.5));
+   const put=(p,c)=>{if(!p)return;const z=Math.min((W[c]-6)/p.w,(rh-6)/p.h);doc.addImage(p.d,'JPEG',X[c]+3,y+3,p.w*z,p.h*z)};
+   if(i.k==='hadir'){put(i.in,2);put(i.out,3)}else if(i.k==='sakit'&&i.rec.doc)put({d:i.rec.doc,w:i.rec.dw,h:i.rec.dh},2);
+   y+=rh})});
+ const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(8);doc.setTextColor(120);doc.text('Hal '+i+'/'+n,185,292)}
+ dl(doc.output('blob'),'Absensi_'+nm.replace(/\s+/g,'_')+'_'+mo+'.pdf')};
+
+$('ex').onclick=()=>dl(new Blob([JSON.stringify({n:$('n').value,b:$('b').value,ph,dy})],{type:'application/json'}),'data-absensi.json');
+$('im').onclick=()=>$('fi').click();
+$('fi').onchange=async e=>{try{const j=JSON.parse(await e.target.files[0].text());
+ for(const p of j.ph||[])await S('p','readwrite',o=>o.put(p));for(const x of j.dy||[])await S('d','readwrite',o=>o.put(x));
+ if(j.n&&!$('n').value)$('n').value=j.n;if(j.b&&!$('b').value)$('b').value=j.b;msg('Data dimuat.');await load()}catch(x){msg('File data tidak valid.')}e.target.value=''};
+
+(async()=>{if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+ try{DB=await new Promise((ok,no)=>{const q=indexedDB.open('absensi2',1);q.onupgradeneeded=()=>{q.result.createObjectStore('p',{keyPath:'id'});q.result.createObjectStore('d',{keyPath:'date'})};q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})}catch(e){return msg('Penyimpanan tidak tersedia.')}
+ await load();await got()})();
+</script></body></html>
