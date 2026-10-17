@@ -3,6 +3,7 @@
 <title>Absensi</title><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0f766e">
 <link rel="icon" href="icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js"></script>
 <style>
 :root{--bg:#f6f7f9;--card:#fff;--tx:#1a1d21;--mu:#6b7280;--ac:#0f766e;--bd:#e3e6ea;--dg:#b91c1c;--bt:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1b2026;--tx:#eceff2;--mu:#98a2ae;--ac:#2dd4bf;--bd:#2c343d;--dg:#f87171;--bt:#06201d}}
@@ -39,6 +40,8 @@ const lastDef=()=>{const t=new Date();return C.mo===iso(t).slice(0,7)?t.getDate(
 const V=h=>$('v').innerHTML=h,msg=t=>$('m').textContent=t;
 const kind=d=>d>C.last?'none':C.libur.includes(d)?'libur':C.sakit.includes(d)?'sakit':C.izin.includes(d)?'izin':'hadir';
 const hd=()=>{const a=[];for(let d=1;d<=C.last;d++)if(kind(d)==='hadir')a.push(d);return a};
+const tm=p=>p&&p.t&&(p.src==='ocr'||p.src==='exif')?pad(new Date(p.t).getHours())+':'+pad(new Date(p.t).getMinutes()):'';
+const th=p=>p?'<span style="text-align:center"><img class="t" data-rm="'+p.id+'" src="'+p.d+'"><small>'+tm(p)+'</small></span>':'';
 const dow=d=>HR[new Date(+C.mo.slice(0,4),+C.mo.slice(5)-1,d).getDay()];
 
 function exif(buf){const v=new DataView(buf);if(v.getUint16(0)!==0xFFD8)return null;let o=2;
@@ -49,22 +52,46 @@ function exif(buf){const v=new DataView(buf);if(v.getUint16(0)!==0xFFD8)return n
    let s='';for(let i=0;i<19;i++)s+=String.fromCharCode(v.getUint8(t+dt+i));
    const a=s.match(/(\d+):(\d+):(\d+) (\d+):(\d+):(\d+)/);return a?new Date(+a[1],a[2]-1,+a[3],+a[4],+a[5],+a[6]).getTime():null}
   o+=2+l}return null}
-function shrink(f){return new Promise((ok,no)=>{const u=URL.createObjectURL(f),i=new Image();i.onload=()=>{const k=Math.min(1,700/Math.max(i.width,i.height)),w=Math.round(i.width*k),h=Math.round(i.height*k),c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(i,0,0,w,h);URL.revokeObjectURL(u);ok({d:c.toDataURL('image/jpeg',.65),w,h})};i.onerror=no;i.src=u})}
+const loadImg=f=>new Promise((ok,no)=>{const u=URL.createObjectURL(f),i=new Image();i.onload=()=>ok({i,u});i.onerror=no;i.src=u});
+function shrink(i){const k=Math.min(1,700/Math.max(i.width,i.height)),w=Math.round(i.width*k),h=Math.round(i.height*k),c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(i,0,0,w,h);return{d:c.toDataURL('image/jpeg',.65),w,h}}
+const shrinkF=async f=>{const{i,u}=await loadImg(f),r=shrink(i);URL.revokeObjectURL(u);return r};
+function badge(i){const W=300,H=Math.round(W*i.height/i.width),c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');x.drawImage(i,0,0,W,H);
+ const a=x.getImageData(Math.round(W*.03),Math.round(H*.73),Math.round(W*.26),Math.round(H*.06)).data;let b=0,o=0;
+ for(let k=0;k<a.length;k+=4){const r=a[k],g=a[k+1],l=a[k+2];if(l>200&&r<100&&g<130)b++;else if(r>220&&g>70&&g<150&&l<110)o++}
+ return b>o&&b>150?'in':o>b&&o>150?'out':null}
+let TW=null;
+async function ocr(i){if(!window.Tesseract)return null;
+ try{if(!TW){TW=await Tesseract.createWorker('eng');await TW.setParameters({tessedit_char_whitelist:'0123456789:-. ',tessedit_pageseg_mode:'6'})}
+  const sx=i.width*.02,sy=i.height*.795,sw=i.width*.46,sh=i.height*.08,k=Math.min(1,900/sw);
+  for(const th of [200,0]){const c=document.createElement('canvas');c.width=Math.round(sw*k);c.height=Math.round(sh*k);const x=c.getContext('2d');x.drawImage(i,sx,sy,sw,sh,0,0,c.width,c.height);
+   if(th){const d=x.getImageData(0,0,c.width,c.height),a=d.data;for(let q=0;q<a.length;q+=4){const v=.3*a[q]+.59*a[q+1]+.11*a[q+2]>th?0:255;a[q]=a[q+1]=a[q+2]=v}x.putImageData(d,0,0)}
+   const tx=(await TW.recognize(c)).data.text,a=tx.match(/(\d{1,2})\s*[:.]\s*(\d{2})/),b=tx.match(/(\d{2})\s*-\s*(\d{2})\s*-\s*(\d{4})/);
+   if(a&&b&&+a[1]<24&&+a[2]<60&&+b[2]>=1&&+b[2]<=12&&+b[1]>=1&&+b[1]<=31)return new Date(+b[3],b[2]-1,+b[1],+a[1],+a[2]).getTime()}}catch(e){}
+ return null}
 
-async function add(fs,sh){msg('Memproses foto...');let n=0;
- for(const f of fs){try{let t=null;try{t=exif(await f.slice(0,131072).arrayBuffer())}catch(e){}
-  if(!t&&!sh&&f.lastModified)t=f.lastModified;
-  const s=await shrink(f);P.push({id:Math.random().toString(36).slice(2,9),name:f.name||'',t,date:t?iso(new Date(t)):'',d:s.d,w:s.w,h:s.h});n++}catch(e){}}
- msg(n+' foto ditambahkan.');if(st===4)s4()}
+async function add(fs,sh){let n=0,ok=0;
+ for(const f of fs){msg('Membaca foto '+(n+1)+' dari '+fs.length+'...');
+  try{const{i,u}=await loadImg(f);let t=null,src='',role=null;
+   try{t=await ocr(i);if(t)src='ocr';role=badge(i)}catch(e){}
+   if(!t){try{t=exif(await f.slice(0,131072).arrayBuffer());if(t)src='exif'}catch(e){}}
+   if(!t&&!sh&&f.lastModified){t=f.lastModified;src='file'}
+   const z=shrink(i);URL.revokeObjectURL(u);if(src==='ocr')ok++;
+   P.push({id:Math.random().toString(36).slice(2,9),name:f.name||'',t,src,role,date:t?iso(new Date(t)):'',d:z.d,w:z.w,h:z.h});n++}catch(e){}}
+ msg(n+' foto ditambahkan. Jam terbaca otomatis di '+ok+' foto.');if(st===4)s4()}
 async function got(){if(!/shared=1/.test(location.search)||!window.caches)return;
+ const c=await caches.open('share'),ks=await c.keys(),fs=[];
+ for(const k of ks){const r=await c.match(k);fs.push(new File([await r.blob()],decodeURIComponent(r.headers.get('x-name')||'foto.jpg'),{type:'image/jpeg'}));await c.delete(k)}
  history.replaceState(null,'','./');if(fs.length){await add(fs,true);msg(fs.length+' foto dari galeri sudah siap. Isi dulu langkah-langkah di bawah.')}}
 
 function assign(){const H=hd(),R={};
- const dated=P.length&&P.every(p=>p.t&&p.date.slice(0,7)===C.mo&&H.includes(+p.date.slice(8)));
- if(dated){mode='tanggal';H.forEach(d=>{const a=P.filter(p=>+p.date.slice(8)===d).sort((x,y)=>x.t-y.t);if(a.length)R[d]={i:a[0],o:a.length>1?a[a.length-1]:null}})}
+ if(P.length&&P.every(p=>p.t)){mode='tanggal';const by={};
+  P.forEach(p=>{let dt=new Date(p.t);if(p.role==='out'&&dt.getHours()<6){const pv=new Date(p.t-864e5);if(H.includes(pv.getDate())&&iso(pv).slice(0,7)===C.mo)dt=pv}
+   const d=iso(dt).slice(0,7)===C.mo?dt.getDate():0;if(H.includes(d))(by[d]=by[d]||[]).push(p)});
+  for(const d in by){const a=by[d].sort((x,y)=>x.t-y.t),ins=a.filter(p=>p.role==='in'),outs=a.filter(p=>p.role==='out');
+   R[d]=(ins.length||outs.length)?{i:ins[0]||null,o:outs.length?outs[outs.length-1]:null}:{i:a[0],o:a.length>1?a[a.length-1]:null}}}
  else{mode='urutan';const s=P.slice().sort(P.every(p=>p.t)?(a,b)=>a.t-b.t:(a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
   H.forEach((d,k)=>{if(s[2*k])R[d]={i:s[2*k],o:s[2*k+1]||null}})}
- for(const d in R)if(SW[d]&&R[d].o)[R[d].i,R[d].o]=[R[d].o,R[d].i];
+ for(const d in R)if(SW[d]&&R[d].i&&R[d].o)[R[d].i,R[d].o]=[R[d].o,R[d].i];
  return R}
 
 function s0(){V('<h2>Langkah 1 dari 5 · Data</h2><label>Nama</label><input id="n" value="'+esc(C.n)+'" placeholder="Nama lengkap"><label>Cabang</label><input id="b" value="'+esc(C.b)+'" placeholder="Nama cabang"><div class="g"><div><label>Bulan</label><input id="mo" type="month" value="'+C.mo+'"></div><div><label>Rekap sampai tanggal</label><input id="la" type="number" min="1" max="31" value="'+(C.last||lastDef())+'"></div></div><button data-go>Lanjut</button>')}
@@ -77,12 +104,12 @@ function sx(){const t=[0,['Hari libur','Tanggal berapa saja kamu libur?',''],
  ['Sakit','Tanggal berapa saja kamu sakit?','<label>Foto surat dokter (wajib jika ada hari sakit)</label><input id="dk" type="file" accept="image/*">'+(doc?'<p class="s">Foto surat sudah dipilih.</p>':'')],
  ['Izin','Tanggal berapa saja kamu izin?','<label>Keterangan izin (wajib jika ada hari izin)</label><input id="kt" value="'+esc(C.note)+'" placeholder="Alasan izin">']][st];
  V('<h2>Langkah '+(st+1)+' dari 5 · '+t[0]+'</h2><p class="s">'+t[1]+' Ketuk tanggalnya. Kalau tidak ada, langsung lanjut.</p><div class="dg" id="gr"></div>'+t[2]+nav);grid()}
-function s4(){const H=hd().length;V('<h2>Langkah 5 dari 5 · Foto absen</h2><p class="s">Kamu masuk '+H+' hari, jadi butuh '+2*H+' foto (masuk dan pulang tiap hari). Pilih semuanya sekaligus dari galeri.</p><input id="f" type="file" accept="image/*" multiple><p class="s" style="margin-top:8px">'+P.length+' foto siap.</p>'+(P.length?'<button class="o" data-clr>Kosongkan foto</button>':'')+'<div class="g"><button class="o" data-bk>Kembali</button><button data-go>Lihat hasil</button></div>')}
-function s5(){const R=assign(),H=hd().length,used=Object.values(R).reduce((s,x)=>s+1+(x.o?1:0),0);
+function s4(){const H=hd().length;V('<h2>Langkah 5 dari 5 · Foto absen</h2><p class="s">Kamu masuk '+H+' hari, jadi butuh '+2*H+' foto (masuk dan pulang tiap hari). Pilih semuanya sekaligus dari galeri. Jam dan status masuk/pulang dibaca otomatis dari tulisan di foto Marki (butuh internet, beberapa detik per foto).</p><input id="f" type="file" accept="image/*" multiple><p class="s" style="margin-top:8px">'+P.length+' foto siap.</p>'+(P.length?'<button class="o" data-clr>Kosongkan foto</button>':'')+'<div class="g"><button class="o" data-bk>Kembali</button><button data-go>Lihat hasil</button></div>')}
+function s5(){const R=assign(),H=hd().length,used=Object.values(R).reduce((s,x)=>s+(x.i?1:0)+(x.o?1:0),0);
  let h='<h2>Hasil</h2><p class="s">Dicocokkan lewat '+(mode==='tanggal'?'tanggal foto':'urutan foto')+'. '+(P.length!==2*H?'Jumlah foto '+P.length+', idealnya '+2*H+'. ':'')+(P.length>used?(P.length-used)+' foto tidak terpakai. ':'')+'Ketuk foto untuk menghapusnya.</p>';
  for(let d=1;d<=C.last;d++){const k=kind(d),r=R[d];
-  h+='<div class="r"><div><b>'+d+'</b> '+dow(d)+' · '+LB[k]+(k==='izin'?'<small>'+esc(C.note)+'</small>':'')+(k==='hadir'&&!r?'<small>Belum ada foto</small>':'')+'</div><div class="th">'
-   +(r?'<img class="t" data-rm="'+r.i.id+'" src="'+r.i.d+'">'+(r.o?'<img class="t" data-rm="'+r.o.id+'" src="'+r.o.d+'">':''):'')+'</div>'+(r&&r.o?'<a data-sw="'+d+'">Tukar</a>':'')+'</div>'}
+  h+='<div class="r"><div><b>'+d+'</b> '+dow(d)+' · '+LB[k]+(k==='izin'?'<small>'+esc(C.note)+'</small>':'')+(k==='hadir'&&!r?'<small>Belum ada foto</small>':k==='hadir'&&r&&!r.i?'<small>Foto masuk belum ada</small>':k==='hadir'&&r&&!r.o&&mode==='tanggal'?'<small>Foto pulang belum ada</small>':'')+'</div><div class="th">'
+   +(r?th(r.i)+th(r.o):'')+'</div>'+(r&&r.i&&r.o?'<a data-sw="'+d+'">Tukar</a>':'')+'</div>'}
  V(h+'<button data-pdf>Unduh PDF</button><button class="o" data-bk>Kembali ke foto</button>')}
 const go=n=>{st=n;[s0,sx,sx,sx,s4,s5][n]()};
 
@@ -103,7 +130,7 @@ document.addEventListener('click',e=>{const a=e.target.dataset;
  if(a.pdf!==undefined)pdf()});
 document.addEventListener('change',async e=>{const t=e.target;
  if(t.id==='mo'){const o=C.mo;C.mo=t.value||o;$('la').value=lastDef();C.mo=o}
- if(t.id==='dk'&&t.files[0]){try{doc=await shrink(t.files[0]);msg('Foto surat dipilih.')}catch(x){msg('Foto surat gagal dibaca.')}}
+ if(t.id==='dk'&&t.files[0]){try{doc=await shrinkF(t.files[0]);msg('Foto surat dipilih.')}catch(x){msg('Foto surat gagal dibaca.')}}
  if(t.id==='f'){await add([...t.files],false)}});
 
 function pdf(){const R=assign(),{jsPDF}=window.jspdf,d0=new jsPDF('p','mm','a4'),X=[10,34,92,146],W=[24,58,54,54],N=dim();
@@ -121,7 +148,7 @@ function pdf(){const R=assign(),{jsPDF}=window.jspdf,d0=new jsPDF('p','mm','a4')
    d0.setFontSize(12);d0.setFont(undefined,'bold');d0.text(d+' '+dow(d),X[0]+2,y+8);d0.setFont(undefined,'normal');d0.setFontSize(10);
    const L={hadir:['Hadir'],libur:['Absen Libur','Shift: Day Off','Terima kasih'],sakit:['Sakit'],izin:['Izin'].concat(d0.splitTextToSize(C.note||'',W[1]-4)),none:['-']}[k];
    L.forEach((t,j)=>d0.text(t,X[1]+2,y+8+j*5.5));
-   const put=(p,c)=>{if(!p)return;const z=Math.min((W[c]-6)/p.w,(rh-6)/p.h);d0.addImage(p.d,'JPEG',X[c]+3,y+3,p.w*z,p.h*z)};
+   const put=(p,c)=>{if(!p)return;const z=Math.min((W[c]-6)/p.w,(rh-11)/p.h);d0.addImage(p.d,'JPEG',X[c]+3,y+3,p.w*z,p.h*z);const q=tm(p);if(q){d0.setFontSize(9);d0.text(q,X[c]+3,y+rh-2)}};
    if(k==='hadir'&&r){put(r.i,2);put(r.o,3)}else if(k==='sakit')put(doc,2);
    y+=rh})});
  const n=d0.getNumberOfPages();for(let i=1;i<=n;i++){d0.setPage(i);d0.setFontSize(8);d0.setTextColor(120);d0.text('Hal '+i+'/'+n,185,292)}
