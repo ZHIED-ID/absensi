@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "MeowAbsensi — Catatan Kehadiran",
-  "short_name": "MeowAbsensi",
+  "name": "Absensi — Catatan Kehadiran",
+  "short_name": "Absensi",
   "description": "Absensi foto dengan OCR Marki dan koreksi manual yang aman.",
   "start_url": "./",
   "scope": "./",

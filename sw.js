@@ -1,4 +1,4 @@
-const CACHE_NAME = 'meow-absensi-v2';
+const CACHE_NAME = 'absensi-v3';
 const APP_SHELL = ['./', './index.html', './manifest.json', './ocr-utils.js', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => {
@@ -12,7 +12,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter(key => key.startsWith('meow-absensi-') && key !== CACHE_NAME).map(key => caches.delete(key)));
+    await Promise.all(keys.filter(key => (key.startsWith('meow-absensi-') || key.startsWith('absensi-')) && key !== CACHE_NAME).map(key => caches.delete(key)));
     await self.clients.claim();
   })());
 });

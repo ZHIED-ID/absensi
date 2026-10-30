@@ -1,51 +1,44 @@
-# MeowAbsensi — Cat Edition
+# Absensi — Cat Edition
 
-Versi perbaikan dari aplikasi absensi PWA berbasis HTML, CSS, dan JavaScript. Struktur alur utama dipertahankan: data diri → hari libur → sakit → izin → foto absensi → hasil/PDF.
+Aplikasi absensi PWA (HTML, CSS, JavaScript). Alur: data diri → hari libur → sakit → izin → foto absensi → hasil/PDF.
 
-## Perubahan utama
+## OCR bertingkat (cepat dulu, teliti hanya jika perlu)
 
-- Tema antarmuka cream–orange dengan identitas kucing, kartu yang lebih rapi, dan layout mobile-first.
-- OCR tidak lagi bergantung pada satu posisi cap Marki atau garis pemisah vertikal. Aplikasi mencoba membaca seluruh foto, lalu mengulang pembacaan pada area bawah dan kiri-bawah untuk format overlay yang berbeda.
-- Parsing tanggal mendukung `DD-MM-YYYY`, `DD/MM/YYYY`, dan `DD.MM.YYYY`.
-- Parsing jam memvalidasi format 24 jam `HH:mm`. Pembacaan satu digit yang berisiko kehilangan angka pertama tidak langsung dipercaya.
-- Tidak ada fallback otomatis ke `File.lastModified`; waktu file bukan bukti waktu absensi.
-- Foto asli dimasukkan ke IndexedDB sebelum OCR dijalankan. Kegagalan OCR atau kegagalan membuat thumbnail tidak menghapus foto.
-- Setiap foto dapat dikoreksi: tanggal, jam, jenis foto (masuk/keluar), dan shift.
-- Data foto dan koreksi dipulihkan setelah halaman dimuat ulang.
-- Service worker dan manifest diperbarui untuk PWA Cat Edition.
-- Pengujian parser OCR otomatis tersedia.
+Cap Marki dibaca dengan tiga tingkat. Foto yang sudah terbaca di tingkat awal tidak melanjutkan ke tingkat berikutnya.
 
-## Menjalankan aplikasi
+1. **Cepat** – mencari garis pemisah `|` pada cap Marki, memotong baris jam dan baris tanggal saja, lalu membaca keduanya sekaligus dengan whitelist angka. Beberapa posisi pita dan ambang warna dicoba. Biasanya hanya 2 pembacaan kecil.
+2. **Area bawah** – tanpa mencari garis pemisah (untuk format overlay lain, mis. label `Waktu:` / `Tanggal:`).
+3. **Seluruh foto** – paling lambat; hanya untuk foto yang masih belum menghasilkan tanggal dan jam.
 
-Aplikasi dapat di-host sebagai static site, misalnya GitHub Pages. Buka `index.html` melalui HTTPS atau localhost agar service worker dan IndexedDB dapat bekerja dengan benar.
+Hasil beberapa pembacaan digabung dengan voting (`MarkiOCR.merge`). Tanggal yang jatuh di bulan yang dipilih diprioritaskan. Jam satu digit (`5:14`, kemungkinan angka depan terpotong) tidak pernah dipercaya sendirian. Jam yang hanya terbaca sekali ditandai "cek lagi" dan shift-nya tetap harus dikonfirmasi.
 
-OCR menggunakan Tesseract.js dari CDN. Koneksi internet diperlukan saat library dan model bahasa pertama kali dimuat. Jika OCR tidak tersedia, unggah foto tetap disimpan dan data tanggal/jam/shift dapat diisi manual.
+Worker OCR disiapkan di latar belakang begitu langkah foto dibuka, jadi foto pertama tidak menunggu unduhan model.
+
+## Jika OCR gagal
+
+- Foto asli selalu disimpan ke IndexedDB **sebelum** OCR dijalankan; gagal OCR tidak pernah menghapus foto.
+- Foto yang gagal ditandai **Isi manual**. Cukup isi **tanggal** dan pilih **shift**; jam boleh dikosongkan.
+- Di halaman hasil, hari yang belum pasti shift-nya menampilkan pilihan shift langsung.
+- Foto jam keluar sebelum 06:00 dipasangkan ke hari sebelumnya (shift closing / full shift yang lewat tengah malam).
+
+## PDF
+
+PDF berisi tanggal, status, shift, dan foto. Jam hasil OCR **tidak** dicetak; jam dan tanggal OCR hanya dipakai untuk memastikan tanggal dan shift benar.
+
+## Menjalankan
+
+Host sebagai static site (mis. GitHub Pages) lewat HTTPS atau localhost agar service worker dan IndexedDB bekerja. Tesseract.js dan jsPDF dimuat dari CDN; internet dibutuhkan saat pertama kali.
 
 ## Penyimpanan dan privasi
 
-Foto asli dan thumbnail disimpan di IndexedDB pada browser/perangkat yang digunakan. Data tidak dikirim ke server aplikasi. Data ini tidak otomatis tersinkron ke perangkat lain. Jangan menghapus data situs/browser jika foto masih diperlukan. PDF yang diunduh dapat digunakan sebagai salinan laporan, tetapi bukan backup foto asli.
+Foto asli dan thumbnail disimpan di IndexedDB pada browser/perangkat yang dipakai. Data tidak dikirim ke server. Jangan menghapus data situs jika foto masih diperlukan. Nama database internal (`meow-absensi-db`) sengaja dipertahankan agar foto yang sudah tersimpan tetap terbaca setelah nama aplikasi diganti.
 
-## Uji parser OCR
+## Tes parser OCR
 
-Membutuhkan Node.js 18 atau lebih baru:
+Membutuhkan Node.js 18+:
 
 ```bash
 node --test tests/ocr-regression.test.js
 ```
 
-Tes mencakup empat format overlay Marki yang diberikan, konflik pembacaan jam, tanggal terpotong, dan nilai waktu/tanggal yang tidak valid.
-
-## Catatan pengujian
-
-Empat foto contoh yang disertakan dalam percakapan digunakan untuk analisis format overlay. Tes otomatis saat ini menguji parser teks dan validasi data, bukan menjamin OCR selalu berhasil pada semua kondisi kamera, resolusi, pencahayaan, atau 50 foto lain. Hasil OCR tetap dapat diedit sebelum laporan diunduh.
-
-### Catatan dari empat foto contoh
-
-Pembacaan lokal awal pada foto contoh menunjukkan:
-
-- `08:58` dan `01-10-2026` dapat dibaca lengkap.
-- Foto `15:14` menghasilkan teks jam terpotong (`5:14`) dan tanggal yang tidak lengkap pada pembacaan awal. Sistem tidak mengubahnya menjadi `05:14`; pengguna diminta mengoreksi.
-- `23:44` dan `03-10-2026` dapat dibaca lengkap.
-- Foto dengan label `Waktu:` / `Tanggal:` menghasilkan tanggal, tetapi jam tidak terdeteksi pada pembacaan awal. Jam diminta diisi manual bila percobaan crop tambahan juga gagal.
-
-Perilaku ini disengaja: data waktu yang tidak pasti tidak boleh disimpan sebagai waktu absensi yang seolah-olah valid.
+Tes mencakup format overlay Marki, pembacaan baris jam/tanggal, voting antar pembacaan, jam terpotong, tanggal terpotong, dan nilai tidak valid. Tes ini menguji logika teks, bukan keberhasilan OCR pada foto nyata.
