@@ -21,6 +21,15 @@ Worker OCR disiapkan di latar belakang begitu langkah foto dibuka, jadi foto per
 - Di halaman hasil, hari yang belum pasti shift-nya menampilkan pilihan shift langsung.
 - Foto jam keluar sebelum 06:00 dipasangkan ke hari sebelumnya (shift closing / full shift yang lewat tengah malam).
 
+## Simpan dan lanjutkan lewat PDF
+
+PDF yang diunduh juga berfungsi sebagai **file simpan**. Di langkah pertama (Data diri) pilih **Lanjutkan dari PDF terakhir** untuk memuat kembali data diri, hari libur/sakit/izin, foto beserta tanggal/shift-nya, dan pilihan shift. Setelah itu perbarui "Sampai tanggal", tambahkan foto yang masih kurang, lalu unduh PDF baru.
+
+- Data disematkan di properti PDF (`Keywords`), tidak terlihat di halaman. Ukuran file kira-kira dua kali lipat karena foto disimpan sekali lagi.
+- Hanya PDF hasil unduhan versi ini (atau lebih baru) yang bisa dilanjutkan; PDF lama tidak punya data tersebut.
+- Foto yang dimuat dari PDF memakai versi thumbnail yang sama dengan isi PDF (bukan foto asli resolusi penuh).
+- Isi PDF dianggap tidak tepercaya: semua field divalidasi, dan hanya gambar JPEG data-URL yang diterima.
+
 ## PDF
 
 PDF berisi tanggal, status, shift, dan foto. Jam hasil OCR **tidak** dicetak; jam dan tanggal OCR hanya dipakai untuk memastikan tanggal dan shift benar.
@@ -41,4 +50,4 @@ Membutuhkan Node.js 18+:
 node --test tests/ocr-regression.test.js
 ```
 
-Tes mencakup format overlay Marki, pembacaan baris jam/tanggal, voting antar pembacaan, jam terpotong, tanggal terpotong, dan nilai tidak valid. Tes ini menguji logika teks, bukan keberhasilan OCR pada foto nyata.
+Tes mencakup penyimpanan/pemuatan state PDF (`tests/state-utils.test.js`), format overlay Marki, pembacaan baris jam/tanggal, voting antar pembacaan, jam terpotong, tanggal terpotong, dan nilai tidak valid. Tes ini menguji logika teks, bukan keberhasilan OCR pada foto nyata.
