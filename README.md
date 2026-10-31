@@ -16,7 +16,7 @@ Worker OCR disiapkan di latar belakang begitu langkah foto dibuka, jadi foto per
 
 ## Foto gabungan masuk + pulang
 
-Jika satu gambar berisi dua foto kiri-kanan (mis. "Laporan kerja" Marki), aplikasi mendeteksi jarak putih di tengah, memotongnya menjadi dua foto biasa (kiri = masuk, kanan = pulang), lalu memprosesnya lewat alur OCR yang sama seperti foto lain. Badge/jam hasil OCR tetap diutamakan; urutan kiri/kanan hanya dipakai jika OCR tidak menemukan jenis foto. Jika deteksi otomatis gagal, buka **Periksa / koreksi** → **Pisahkan** (memotong di tengah). Modul: `collage-utils.js`.
+Jika satu gambar berisi beberapa foto yang dipisah jarak putih (mis. "Laporan kerja" Marki: 2 foto kiri-kanan, atau grid 2 kolom), aplikasi memotong setiap foto menjadi foto biasa lalu memprosesnya lewat alur OCR yang sama. Semua foto di gambar ikut dipotong (tidak ada yang hilang). Untuk gambar berisi tepat 2 foto, hasilnya dipastikan satu masuk dan satu pulang: badge/OCR diutamakan, lalu tanggal/jam, terakhir urutan kiri = masuk. Tanggal yang gagal dibaca pada salah satu foto dilengkapi dari foto pasangannya (pulang dini hari dihitung ke tanggal berikutnya). Jika deteksi otomatis gagal, buka **Periksa / koreksi** → **Pisahkan** (memotong di tengah). Modul: `collage-utils.js`.
 
 ## Hapus dan unggah manual
 
