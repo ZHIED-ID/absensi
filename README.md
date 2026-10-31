@@ -18,6 +18,11 @@ Worker OCR disiapkan di latar belakang begitu langkah foto dibuka, jadi foto per
 
 Jika satu gambar berisi dua foto kiri-kanan (mis. "Laporan kerja" Marki), aplikasi mendeteksi jarak putih di tengah, memotongnya menjadi dua foto biasa (kiri = masuk, kanan = pulang), lalu memprosesnya lewat alur OCR yang sama seperti foto lain. Badge/jam hasil OCR tetap diutamakan; urutan kiri/kanan hanya dipakai jika OCR tidak menemukan jenis foto. Jika deteksi otomatis gagal, buka **Periksa / koreksi** → **Pisahkan** (memotong di tengah). Modul: `collage-utils.js`.
 
+## Hapus dan unggah manual
+
+- **Hapus**: tombol *Hapus* ada di kartu foto, di bawah foto pada halaman hasil, dan di jendela koreksi (selalu minta konfirmasi).
+- **Unggah / Ganti foto**: di halaman hasil, tiap hari punya tombol untuk slot Masuk dan Pulang. Foto langsung dipasang ke tanggal dan slot itu; OCR hanya dipakai untuk jam (jika tanggalnya cocok). *Ganti foto* menghapus foto lama di slot tersebut setelah foto baru berhasil disimpan.
+
 ## Jika OCR gagal
 
 - Foto asli selalu disimpan ke IndexedDB **sebelum** OCR dijalankan; gagal OCR tidak pernah menghapus foto.
