@@ -1,5 +1,5 @@
-const CACHE_NAME = 'absensi-v4';
-const APP_SHELL = ['./', './index.html', './manifest.json', './ocr-utils.js', './state-utils.js', './icon-192.png', './icon-512.png'];
+const CACHE_NAME = 'absensi-v5';
+const APP_SHELL = ['./', './index.html', './manifest.json', './ocr-utils.js', './state-utils.js', './collage-utils.js', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {

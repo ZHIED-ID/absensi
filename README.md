@@ -14,6 +14,10 @@ Hasil beberapa pembacaan digabung dengan voting (`MarkiOCR.merge`). Tanggal yang
 
 Worker OCR disiapkan di latar belakang begitu langkah foto dibuka, jadi foto pertama tidak menunggu unduhan model.
 
+## Foto gabungan masuk + pulang
+
+Jika satu gambar berisi dua foto kiri-kanan (mis. "Laporan kerja" Marki), aplikasi mendeteksi jarak putih di tengah, memotongnya menjadi dua foto biasa (kiri = masuk, kanan = pulang), lalu memprosesnya lewat alur OCR yang sama seperti foto lain. Badge/jam hasil OCR tetap diutamakan; urutan kiri/kanan hanya dipakai jika OCR tidak menemukan jenis foto. Jika deteksi otomatis gagal, buka **Periksa / koreksi** → **Pisahkan** (memotong di tengah). Modul: `collage-utils.js`.
+
 ## Jika OCR gagal
 
 - Foto asli selalu disimpan ke IndexedDB **sebelum** OCR dijalankan; gagal OCR tidak pernah menghapus foto.
